@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>日本语 A/B/C 词典</title>
+    <link rel="stylesheet" href="./styles.css?v=20260701-equal-cards" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <img class="brand-mark" src="./assets/logo-deep-teal.png" alt="" />
+          <div>
+            <h1>日本语 A/B/C 词典</h1>
+            <p id="datasetMeta">加载词条中</p>
+          </div>
+        </div>
+        <label class="search-box" for="searchInput">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" autocomplete="off" placeholder="搜索表记、读音、汉字、罗马音、释义" />
+        </label>
+        <button class="search-mode-button" type="button" id="termOnlySearchBtn" aria-pressed="false">只搜日语</button>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar" aria-label="分类索引">
+          <div class="panel-section">
+            <div class="segmented" role="tablist" aria-label="索引类型">
+              <button class="segment active" id="categoryTab" type="button" data-index-tab="category">分类</button>
+              <button class="segment" id="kanjiTab" type="button" data-index-tab="kanji">汉字</button>
+              <button class="segment" id="savedTab" type="button" data-index-tab="saved">清单</button>
+              <button class="segment" id="settingsTab" type="button" data-index-tab="settings">设置</button>
+            </div>
+          </div>
+
+          <section class="panel-section index-panel active" id="categoryPanel" aria-label="类别">
+            <button class="wide-action active" type="button" data-major="" data-cluster="">全部词条</button>
+            <div id="categoryIndex" class="category-index"></div>
+          </section>
+
+          <section class="panel-section index-panel" id="kanjiPanel" aria-label="汉字索引">
+            <label class="mini-search">
+              <span>汉字</span>
+              <input id="kanjiSearch" type="search" autocomplete="off" placeholder="筛选汉字" />
+            </label>
+            <div class="kanji-detail" id="kanjiDetail" hidden></div>
+            <div id="kanjiIndex" class="kanji-index"></div>
+          </section>
+
+          <section class="panel-section index-panel" id="savedPanel" aria-label="背诵清单">
+            <button class="wide-action" type="button" id="showStarredBtn">已标记</button>
+            <button class="wide-action" type="button" id="showUnlearnedBtn">未掌握</button>
+            <button class="wide-action" type="button" id="showLearnedBtn">已掌握</button>
+            <button class="wide-action muted" type="button" id="clearStatusBtn">清空本地状态</button>
+          </section>
+
+          <section class="panel-section index-panel settings-panel" id="settingsPanel" aria-label="显示设置">
+            <div class="setting-group">
+              <span class="setting-label">主题</span>
+              <div class="theme-options" role="group" aria-label="主题">
+                <button class="theme-option active" type="button" data-theme-mode="system">系统</button>
+                <button class="theme-option" type="button" data-theme-mode="light">浅色</button>
+                <button class="theme-option" type="button" data-theme-mode="dark">深色</button>
+              </div>
+            </div>
+            <label class="setting-group file-setting">
+              <span class="setting-label">背景</span>
+              <input id="backgroundUpload" type="file" accept="image/*" />
+            </label>
+            <label class="setting-group">
+              <span class="setting-row">
+                <span class="setting-label">透明度</span>
+                <span id="backgroundOpacityLabel">18%</span>
+              </span>
+              <input id="backgroundOpacity" type="range" min="0" max="70" value="18" />
+            </label>
+            <label class="setting-group">
+              <span class="setting-row">
+                <span class="setting-label">栏透明度</span>
+                <span id="panelOpacityLabel">92%</span>
+              </span>
+              <input id="panelOpacity" type="range" min="45" max="100" value="92" />
+            </label>
+            <button class="wide-action muted" type="button" id="clearBackgroundBtn">清除背景</button>
+            <p class="settings-note" id="backgroundStatus"></p>
+          </section>
+        </aside>
+
+        <section class="content">
+          <div class="study-toolbar" aria-label="筛选工具">
+            <div class="toolbar-group filter-group">
+              <div class="filter-controls">
+                <div class="inline-control level-filter-control" id="levelFilter" role="group" aria-label="等级">
+                  <span>等级</span>
+                  <div class="level-toggle-group">
+                    <button class="level-toggle" type="button" data-level-filter="A" aria-pressed="false">A</button>
+                    <button class="level-toggle" type="button" data-level-filter="B" aria-pressed="false">B</button>
+                    <button class="level-toggle" type="button" data-level-filter="C" aria-pressed="false">C</button>
+                  </div>
+                </div>
+                <label class="inline-control">
+                  <span>品词</span>
+                  <select id="partFilter">
+                    <option value="">全部</option>
+                    <optgroup label="大类">
+                      <option value="noun">名词</option>
+                      <option value="verb">动词</option>
+                      <option value="adjective">形容词</option>
+                      <option value="i_adjective">一类形容词</option>
+                      <option value="na_adjective">二类形容词</option>
+                      <option value="taru_adjective">タル形容词</option>
+                    </optgroup>
+                    <optgroup label="名词细分">
+                      <option value="common_noun">普通名词</option>
+                      <option value="proper_noun">专有名词</option>
+                      <option value="suru_noun">サ变名词</option>
+                      <option value="no_adjective">の形容词</option>
+                      <option value="pronoun">代词</option>
+                      <option value="numeric">数词</option>
+                      <option value="counter">助数词</option>
+                    </optgroup>
+                    <optgroup label="动词细分">
+                      <option value="ichidan_verb">一段动词</option>
+                      <option value="godan_verb">五段动词</option>
+                      <option value="suru_verb">サ变动词</option>
+                      <option value="kuru_verb">カ变动词</option>
+                      <option value="special_verb">特殊/古语动词</option>
+                    </optgroup>
+                    <optgroup label="其他品词">
+                      <option value="adverb">副词</option>
+                      <option value="adverb_to">と副词</option>
+                      <option value="prenominal">连体词</option>
+                      <option value="expression">表达/惯用句</option>
+                      <option value="interjection">感叹词</option>
+                      <option value="conjunction">接续词</option>
+                      <option value="particle">助词</option>
+                      <option value="auxiliary">助动/助形</option>
+                      <option value="prefix">接头词</option>
+                      <option value="suffix">接尾词</option>
+                      <option value="unclassified">未分类</option>
+                    </optgroup>
+                  </select>
+                </label>
+                <label class="inline-control">
+                  <span>排序</span>
+                  <select id="sortSelect">
+                    <option value="rank">常用度</option>
+                    <option value="reading">读音</option>
+                    <option value="word">表记</option>
+                    <option value="category">类别</option>
+                    <option value="random">随机</option>
+                  </select>
+                </label>
+              </div>
+              <div class="filter-actions">
+                <button class="control-button transitivity-toggle" type="button" id="transitivityToggleBtn" aria-pressed="false" disabled>自他：无</button>
+                <button class="control-button" type="button" id="resetFiltersBtn">重置筛选</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-strip" aria-label="当前结果">
+            <div>
+              <span class="metric" id="resultCount">0</span>
+              <span class="metric-label">词条</span>
+            </div>
+            <div>
+              <span class="metric" id="majorCount">0</span>
+              <span class="metric-label">大类</span>
+            </div>
+            <div>
+              <span class="metric" id="kanjiCount">0</span>
+              <span class="metric-label">核心汉字</span>
+            </div>
+            <div class="active-filter" id="activeFilter">全部</div>
+          </div>
+
+          <div class="page-toolbar top-page-toolbar" aria-label="批量阅览">
+            <div class="toolbar-group pager-group">
+              <button class="icon-button" type="button" id="prevPageBtn" aria-label="上一批">‹</button>
+              <span class="page-label" id="pageLabel">第 1 批</span>
+              <button class="icon-button" type="button" id="nextPageBtn" aria-label="下一批">›</button>
+            </div>
+            <div class="toolbar-group action-group">
+              <label class="inline-control">
+                <span>每批</span>
+                <select id="batchSizeSelect">
+                  <option value="24">24</option>
+                  <option value="48" selected>48</option>
+                  <option value="96">96</option>
+                  <option value="200">200</option>
+                </select>
+              </label>
+              <button class="control-button" type="button" id="hideGlossBtn" aria-pressed="false">遮住释义</button>
+            </div>
+          </div>
+
+          <div class="empty-state" id="emptyState" hidden>
+            <h2>没有匹配词条</h2>
+            <p>调整搜索词、分类或背诵状态筛选。</p>
+          </div>
+
+          <div class="entry-grid" id="entryGrid" aria-live="polite"></div>
+
+          <div class="bottom-page-toolbar page-toolbar" id="bottomPager" aria-label="底部翻页">
+            <div class="toolbar-group pager-group">
+              <button class="icon-button" type="button" id="bottomPrevPageBtn" aria-label="上一批">‹</button>
+              <span class="page-label" id="bottomPageLabel">第 1 批</span>
+              <button class="icon-button" type="button" id="bottomNextPageBtn" aria-label="下一批">›</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./lexicon-data.js?v=20260701-deepseek-v4-flash"></script>
+    <script src="./examples-data.js?v=20260701-tatoeba-a"></script>
+    <script src="./han-variants.js?v=20260701-1"></script>
+    <script src="./app.js?v=20260701-compact-cards"></script>
+  </body>
+</html>

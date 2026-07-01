@@ -1,0 +1,20 @@
+.DS_Store
+.idea/
+
+# Local secrets
+.env
+.env.*
+*.key
+work/private/
+
+# Python and Node local artifacts
+__pycache__/
+*.py[cod]
+node_modules
+node_modules/
+npm-debug.log*
+
+# Downloaded source data, generated build tables, and heavy inspection dumps
+work/data/
+work/build/
+outputs/**/*.inspect.ndjson
