@@ -8,6 +8,33 @@ const EXAMPLE_DATA = window.LEXICON_EXAMPLES || { meta: {}, entries: {} };
 const EXAMPLES_BY_ENTRY = EXAMPLE_DATA.entries || {};
 const HAN_VARIANT_MAP = buildHanVariantMap(window.HAN_VARIANT_GROUPS || "");
 const HAN_RUN_COMBO_LIMIT = 32;
+const APP_STORAGE_KEYS = {
+  preferences: "lexicon.v1.preferences",
+  progress: "lexicon.v1.progress",
+};
+const LEGACY_STORAGE_KEYS = {
+  themeMode: "lexicon.themeMode",
+  backgroundImage: "lexicon.backgroundImage",
+  backgroundOpacity: "lexicon.backgroundOpacity",
+  panelOpacity: "lexicon.panelOpacity",
+  starred: "lexicon.starred",
+  learned: "lexicon.learned",
+};
+const DEFAULT_PREFERENCES = {
+  themeMode: "system",
+  backgroundOpacity: 18,
+  panelOpacity: 92,
+  batchSize: 48,
+  hideKana: false,
+  hideGloss: false,
+  termOnlySearch: false,
+  indexTab: "category",
+};
+const INDEX_TABS = new Set(["category", "kanji", "saved", "settings"]);
+const BATCH_SIZE_OPTIONS = new Set([24, 48, 96, 200]);
+const APP_STORE = createBrowserLexiconStore();
+const persistedPreferences = APP_STORE.loadPreferences();
+const persistedProgress = APP_STORE.loadProgress();
 
 const state = {
   query: "",
@@ -22,20 +49,22 @@ const state = {
   sort: "rank",
   manualSort: false,
   page: 1,
-  batchSize: 48,
-  hideGloss: false,
+  batchSize: persistedPreferences.batchSize,
+  hideKana: persistedPreferences.hideKana,
+  hideGloss: persistedPreferences.hideGloss,
   shuffled: false,
-  termOnlySearch: false,
-  indexTab: "category",
-  themeMode: readStoredString("lexicon.themeMode", "system"),
-  backgroundImage: readStoredString("lexicon.backgroundImage", ""),
-  backgroundOpacity: clampNumber(readStoredString("lexicon.backgroundOpacity", "18"), 0, 70, 18),
-  panelOpacity: clampNumber(readStoredString("lexicon.panelOpacity", "92"), 45, 100, 92),
+  termOnlySearch: persistedPreferences.termOnlySearch,
+  indexTab: persistedPreferences.indexTab,
+  themeMode: persistedPreferences.themeMode,
+  backgroundImage: "",
+  backgroundName: "",
+  backgroundOpacity: persistedPreferences.backgroundOpacity,
+  panelOpacity: persistedPreferences.panelOpacity,
 };
 
 const storage = {
-  starred: new Set(readStoredList("lexicon.starred")),
-  learned: new Set(readStoredList("lexicon.learned")),
+  starred: new Set(persistedProgress.starred),
+  learned: new Set(persistedProgress.learned),
 };
 
 const TRANSITIVITY_SEQUENCE = ["", "自动词", "他动词", "自他両用"];
@@ -45,15 +74,24 @@ let preparedEntries = [];
 let filteredEntries = [];
 let shuffledIds = [];
 let hasVerbCandidates = false;
+let activeBackgroundObjectUrl = "";
 
 document.addEventListener("DOMContentLoaded", () => {
+  void bootApp();
+});
+
+async function bootApp() {
   bindElements();
   prepareData();
   applyAppearance();
   renderStaticIndexes();
   bindEvents();
+  syncPreferenceControls();
   applyFilters();
-});
+  await restoreStoredBackground();
+  void persistPreferences();
+  persistStorage();
+}
 
 function bindElements() {
   [
@@ -80,6 +118,7 @@ function bindElements() {
     "bottomNextPageBtn",
     "bottomPageLabel",
     "batchSizeSelect",
+    "hideKanaBtn",
     "resetFiltersBtn",
     "hideGlossBtn",
     "entryGrid",
@@ -99,6 +138,9 @@ function bindElements() {
     "panelOpacityLabel",
     "backgroundStatus",
     "clearBackgroundBtn",
+    "exportDataBtn",
+    "importDataBtn",
+    "importDataInput",
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -361,6 +403,7 @@ function bindEvents() {
   els.termOnlySearchBtn.addEventListener("click", () => {
     state.termOnlySearch = !state.termOnlySearch;
     state.page = 1;
+    void persistPreferences();
     applyFilters();
   });
 
@@ -408,6 +451,15 @@ function bindEvents() {
   els.batchSizeSelect.addEventListener("change", () => {
     state.batchSize = Number(els.batchSizeSelect.value);
     state.page = 1;
+    void persistPreferences();
+    renderEntries();
+  });
+
+  els.hideKanaBtn.addEventListener("click", () => {
+    state.hideKana = !state.hideKana;
+    els.hideKanaBtn.classList.toggle("active", state.hideKana);
+    els.hideKanaBtn.setAttribute("aria-pressed", String(state.hideKana));
+    void persistPreferences();
     renderEntries();
   });
 
@@ -435,19 +487,13 @@ function bindEvents() {
     state.hideGloss = !state.hideGloss;
     els.hideGlossBtn.classList.toggle("active", state.hideGloss);
     els.hideGlossBtn.setAttribute("aria-pressed", String(state.hideGloss));
+    void persistPreferences();
     renderEntries();
   });
 
   document.querySelectorAll("[data-index-tab]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.indexTab = button.dataset.indexTab;
-      document.querySelectorAll("[data-index-tab]").forEach((item) => {
-        item.classList.toggle("active", item === button);
-      });
-      els.categoryPanel.classList.toggle("active", state.indexTab === "category");
-      els.kanjiPanel.classList.toggle("active", state.indexTab === "kanji");
-      els.savedPanel.classList.toggle("active", state.indexTab === "saved");
-      els.settingsPanel.classList.toggle("active", state.indexTab === "settings");
+      setIndexTab(button.dataset.indexTab || "category");
     });
   });
 
@@ -524,36 +570,47 @@ function bindEvents() {
   document.querySelectorAll("[data-theme-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       state.themeMode = button.dataset.themeMode || "system";
-      localStorage.setItem("lexicon.themeMode", state.themeMode);
+      void persistPreferences();
       applyAppearance();
     });
   });
 
   els.backgroundOpacity.addEventListener("input", () => {
     state.backgroundOpacity = clampNumber(els.backgroundOpacity.value, 0, 70, 18);
-    localStorage.setItem("lexicon.backgroundOpacity", String(state.backgroundOpacity));
+    void persistPreferences();
     applyAppearance();
   });
 
   els.panelOpacity.addEventListener("input", () => {
     state.panelOpacity = clampNumber(els.panelOpacity.value, 45, 100, 92);
-    localStorage.setItem("lexicon.panelOpacity", String(state.panelOpacity));
+    void persistPreferences();
     applyAppearance();
   });
 
   els.backgroundUpload.addEventListener("change", () => {
     const [file] = els.backgroundUpload.files || [];
     if (file) {
-      loadBackgroundFile(file);
+      void loadBackgroundFile(file);
     }
   });
 
   els.clearBackgroundBtn.addEventListener("click", () => {
-    state.backgroundImage = "";
-    localStorage.removeItem("lexicon.backgroundImage");
-    els.backgroundUpload.value = "";
-    setBackgroundStatus("");
-    applyAppearance();
+    void clearStoredBackground();
+  });
+
+  els.exportDataBtn.addEventListener("click", () => {
+    void exportUserData();
+  });
+
+  els.importDataBtn.addEventListener("click", () => {
+    els.importDataInput.click();
+  });
+
+  els.importDataInput.addEventListener("change", () => {
+    const [file] = els.importDataInput.files || [];
+    if (file) {
+      void importUserData(file);
+    }
   });
 
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -563,29 +620,104 @@ function bindEvents() {
   });
 }
 
-function loadBackgroundFile(file) {
+function syncPreferenceControls() {
+  if (els.batchSizeSelect) {
+    els.batchSizeSelect.value = String(state.batchSize);
+  }
+  if (els.hideGlossBtn) {
+    els.hideGlossBtn.classList.toggle("active", state.hideGloss);
+    els.hideGlossBtn.setAttribute("aria-pressed", String(state.hideGloss));
+  }
+  if (els.hideKanaBtn) {
+    els.hideKanaBtn.classList.toggle("active", state.hideKana);
+    els.hideKanaBtn.setAttribute("aria-pressed", String(state.hideKana));
+  }
+  setIndexTab(state.indexTab, { persist: false });
+}
+
+function setIndexTab(tab, options = {}) {
+  const nextTab = INDEX_TABS.has(tab) ? tab : "category";
+  state.indexTab = nextTab;
+  document.querySelectorAll("[data-index-tab]").forEach((button) => {
+    button.classList.toggle("active", (button.dataset.indexTab || "category") === state.indexTab);
+  });
+  els.categoryPanel.classList.toggle("active", state.indexTab === "category");
+  els.kanjiPanel.classList.toggle("active", state.indexTab === "kanji");
+  els.savedPanel.classList.toggle("active", state.indexTab === "saved");
+  els.settingsPanel.classList.toggle("active", state.indexTab === "settings");
+  if (options.persist !== false) {
+    void persistPreferences();
+  }
+}
+
+async function restoreStoredBackground() {
+  const storedBackground = await APP_STORE.loadBackground();
+  if (storedBackground?.blob) {
+    state.backgroundName = storedBackground.name || "";
+    setBackgroundImageUrl(URL.createObjectURL(storedBackground.blob), { objectUrl: true });
+    return;
+  }
+
+  const legacyDataUrl = APP_STORE.loadLegacyBackgroundDataUrl();
+  if (!legacyDataUrl) return;
+
+  setBackgroundImageUrl(legacyDataUrl);
+  setBackgroundStatus("背景已从旧存储恢复，正在迁移");
+  try {
+    const blob = await dataUrlToBlob(legacyDataUrl);
+    await APP_STORE.saveBackground(blob, {
+      name: "legacy-background",
+      type: blob.type,
+      size: blob.size,
+    });
+    APP_STORE.clearLegacyBackgroundDataUrl();
+    setBackgroundImageUrl(URL.createObjectURL(blob), { objectUrl: true });
+    setBackgroundStatus("背景已迁移到本地图库");
+  } catch {
+    setBackgroundStatus("背景已应用，旧存储迁移失败");
+  }
+}
+
+async function loadBackgroundFile(file) {
   if (!file.type.startsWith("image/")) {
     setBackgroundStatus("请选择图片文件");
     return;
   }
 
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    const dataUrl = String(reader.result || "");
-    state.backgroundImage = dataUrl;
-    try {
-      localStorage.setItem("lexicon.backgroundImage", dataUrl);
-      setBackgroundStatus(file.size > 2500000 ? "背景已应用，较大的图片可能增加页面加载时间" : "背景已应用");
-    } catch {
-      localStorage.removeItem("lexicon.backgroundImage");
-      setBackgroundStatus("背景已应用于当前会话，图片过大未保存");
-    }
-    applyAppearance();
-  });
-  reader.addEventListener("error", () => {
-    setBackgroundStatus("背景读取失败");
-  });
-  reader.readAsDataURL(file);
+  state.backgroundName = file.name || "";
+  setBackgroundImageUrl(URL.createObjectURL(file), { objectUrl: true });
+  setBackgroundStatus("背景已应用，正在保存");
+  try {
+    await APP_STORE.saveBackground(file, {
+      name: file.name || "background",
+      type: file.type,
+      size: file.size,
+    });
+    setBackgroundStatus(file.size > 6000000 ? "背景已保存，大图可能影响加载速度" : "背景已保存");
+  } catch {
+    setBackgroundStatus("背景已应用于当前会话，未能保存");
+  }
+}
+
+async function clearStoredBackground() {
+  setBackgroundImageUrl("");
+  state.backgroundName = "";
+  els.backgroundUpload.value = "";
+  try {
+    await APP_STORE.clearBackground();
+    setBackgroundStatus("背景已清除");
+  } catch {
+    setBackgroundStatus("背景已从当前页面清除，存储清理失败");
+  }
+}
+
+function setBackgroundImageUrl(url, options = {}) {
+  if (activeBackgroundObjectUrl && activeBackgroundObjectUrl !== url) {
+    URL.revokeObjectURL(activeBackgroundObjectUrl);
+  }
+  activeBackgroundObjectUrl = options.objectUrl ? url : "";
+  state.backgroundImage = url;
+  applyAppearance();
 }
 
 function applyAppearance() {
@@ -625,6 +757,75 @@ function applyAppearance() {
 function setBackgroundStatus(message) {
   if (els.backgroundStatus) {
     els.backgroundStatus.textContent = message;
+  }
+}
+
+async function exportUserData() {
+  try {
+    const background = await APP_STORE.loadBackground();
+    const payload = {
+      app: "Yuki Jisho",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      preferences: snapshotPreferences(),
+      progress: snapshotProgress(),
+      background: null,
+    };
+    if (background?.blob) {
+      payload.background = {
+        name: background.name || "background",
+        type: background.type || background.blob.type || "application/octet-stream",
+        size: background.size || background.blob.size || 0,
+        dataUrl: await blobToDataUrl(background.blob),
+      };
+    }
+    downloadJson(payload, `yuki-jisho-data-${dateStamp()}.json`);
+    setBackgroundStatus("本地数据已导出");
+  } catch {
+    setBackgroundStatus("导出失败");
+  }
+}
+
+async function importUserData(file) {
+  try {
+    const payload = JSON.parse(await file.text());
+    const preferences = normalizePreferences(payload.preferences || {});
+    const progress = normalizeProgress(payload.progress || {});
+
+    Object.assign(state, {
+      themeMode: preferences.themeMode,
+      backgroundOpacity: preferences.backgroundOpacity,
+      panelOpacity: preferences.panelOpacity,
+      batchSize: preferences.batchSize,
+      hideKana: preferences.hideKana,
+      hideGloss: preferences.hideGloss,
+      termOnlySearch: preferences.termOnlySearch,
+      indexTab: preferences.indexTab,
+    });
+    storage.starred = new Set(progress.starred);
+    storage.learned = new Set(progress.learned);
+
+    if (payload.background?.dataUrl) {
+      const blob = await dataUrlToBlob(payload.background.dataUrl);
+      state.backgroundName = payload.background.name || "background";
+      await APP_STORE.saveBackground(blob, {
+        name: state.backgroundName,
+        type: payload.background.type || blob.type,
+        size: payload.background.size || blob.size,
+      });
+      setBackgroundImageUrl(URL.createObjectURL(blob), { objectUrl: true });
+    }
+
+    await persistPreferences();
+    persistStorage();
+    syncPreferenceControls();
+    applyAppearance();
+    applyFilters();
+    setBackgroundStatus("本地数据已导入");
+  } catch {
+    setBackgroundStatus("导入失败，请确认文件格式");
+  } finally {
+    els.importDataInput.value = "";
   }
 }
 
@@ -1037,6 +1238,8 @@ function renderEntryCard(entry) {
   const glossSource = "JMdict/EDRDG";
   const translationText = joinDefinitionItems(translationItems);
   const glossText = joinDefinitionItems(glossItems);
+  const readingText = entry.reading || "";
+  const readingsText = joinList(entry.readings);
   const rank = entry.rank ? `#${formatNumber(entry.rank)}` : "无频率";
   const meta = [
     entry.major,
@@ -1054,7 +1257,9 @@ function renderEntryCard(entry) {
           <span class="level-badge">${escapeHtml(entry.level || "-")}</span>
           <span class="word">${escapeHtml(entry.word || "")}</span>
         </div>
-        <div class="reading">${escapeHtml(entry.reading || "")}</div>
+        <div class="reading kana-maskable ${state.hideKana ? "masked" : ""}" data-kana-text="${escapeHtml(readingText)}">${
+          state.hideKana ? "" : escapeHtml(readingText)
+        }</div>
       </div>
       <div class="card-actions">
         <button class="mark-button ${storage.starred.has(entry.id) ? "active" : ""}" type="button" data-action="star" data-entry-id="${escapeHtml(entry.id)}" aria-label="标记">☆</button>
@@ -1064,47 +1269,61 @@ function renderEntryCard(entry) {
     <div class="meta-row">
       ${meta.map((item) => `<span class="meta-chip">${escapeHtml(item)}</span>`).join("")}
     </div>
-    <section class="definition-block translation-block">
-      <div class="section-heading">
-        <strong>中文翻译</strong>
-        <span>${escapeHtml(translationSource)}</span>
-      </div>
-      <ul class="translation-list ${state.hideGloss ? "masked" : ""}">
-        ${
-          state.hideGloss
-            ? ""
-            : translationText
-              ? `<li>${escapeHtml(translationText)}</li>`
-              :
-              `<li class="muted-text">暂无中文翻译</li>`
-        }
-      </ul>
-    </section>
-    <section class="definition-block gloss-block">
-      <div class="section-heading">
-        <strong>英文释义</strong>
-        <span>${escapeHtml(glossSource)}</span>
-      </div>
-      <ul class="gloss-list ${state.hideGloss ? "masked" : ""}">
-        ${
-          state.hideGloss
-            ? ""
-            : glossText
-              ? `<li>${escapeHtml(glossText)}</li>`
-              :
-              `<li class="muted-text">暂无英文释义</li>`
-        }
-      </ul>
-    </section>
-    ${renderExamplesSection(exampleItems)}
+    <div class="definition-scroll">
+      <section class="definition-block translation-block">
+        <div class="section-heading">
+          <strong>中文翻译</strong>
+          <span>${escapeHtml(translationSource)}</span>
+        </div>
+        <ul class="translation-list ${state.hideGloss ? "masked" : ""}">
+          ${
+            state.hideGloss
+              ? ""
+              : translationText
+                ? `<li>${escapeHtml(translationText)}</li>`
+                :
+                `<li class="muted-text">暂无中文翻译</li>`
+          }
+        </ul>
+      </section>
+      <section class="definition-block gloss-block">
+        <div class="section-heading">
+          <strong>英文释义</strong>
+          <span>${escapeHtml(glossSource)}</span>
+        </div>
+        <ul class="gloss-list ${state.hideGloss ? "masked" : ""}">
+          ${
+            state.hideGloss
+              ? ""
+              : glossText
+                ? `<li>${escapeHtml(glossText)}</li>`
+                :
+                `<li class="muted-text">暂无英文释义</li>`
+          }
+        </ul>
+      </section>
+      ${renderExamplesSection(exampleItems)}
+    </div>
     <div class="details-grid">
       <div><strong>全部表记</strong> ${escapeHtml(joinList(entry.writings))}</div>
-      <div><strong>全部读音</strong> ${escapeHtml(joinList(entry.readings))}</div>
+      <div><strong>全部读音</strong> <span class="kana-maskable inline-kana ${state.hideKana ? "masked" : ""}" data-kana-text="${escapeHtml(readingsText)}">${
+        state.hideKana ? "" : escapeHtml(readingsText)
+      }</span></div>
       <div><strong>核心汉字</strong> ${escapeHtml(joinList(entry.kanji))}</div>
       ${entry.pair ? `<div><strong>自他候补</strong> ${escapeHtml(entry.pair)}</div>` : ""}
       ${entry.subpos ? `<div><strong>细品词</strong> ${escapeHtml(entry.subpos)}</div>` : ""}
     </div>
   `;
+
+  if (state.hideKana) {
+    card.querySelectorAll(".kana-maskable.masked").forEach((item) => {
+      item.addEventListener("click", (event) => {
+        const target = event.currentTarget;
+        target.classList.remove("masked");
+        target.textContent = target.dataset.kanaText || "";
+      });
+    });
+  }
 
   if (state.hideGloss) {
     const revealList = (selector, items, fallback) => {
@@ -1315,18 +1534,163 @@ function toggleSetValue(set, value) {
   }
 }
 
+function snapshotPreferences() {
+  return normalizePreferences({
+    themeMode: state.themeMode,
+    backgroundOpacity: state.backgroundOpacity,
+    panelOpacity: state.panelOpacity,
+    batchSize: state.batchSize,
+    hideKana: state.hideKana,
+    hideGloss: state.hideGloss,
+    termOnlySearch: state.termOnlySearch,
+    indexTab: state.indexTab,
+  });
+}
+
+function snapshotProgress() {
+  return normalizeProgress({
+    starred: [...storage.starred],
+    learned: [...storage.learned],
+  });
+}
+
+function persistPreferences() {
+  return APP_STORE.savePreferences(snapshotPreferences());
+}
+
 function persistStorage() {
-  localStorage.setItem("lexicon.starred", JSON.stringify([...storage.starred]));
-  localStorage.setItem("lexicon.learned", JSON.stringify([...storage.learned]));
+  void APP_STORE.saveProgress(snapshotProgress());
+}
+
+function createBrowserLexiconStore() {
+  return {
+    loadPreferences() {
+      const stored = readStoredJson(APP_STORAGE_KEYS.preferences);
+      if (stored) return normalizePreferences(stored);
+      return normalizePreferences({
+        themeMode: readStoredString(LEGACY_STORAGE_KEYS.themeMode, DEFAULT_PREFERENCES.themeMode),
+        backgroundOpacity: readStoredString(
+          LEGACY_STORAGE_KEYS.backgroundOpacity,
+          String(DEFAULT_PREFERENCES.backgroundOpacity),
+        ),
+        panelOpacity: readStoredString(LEGACY_STORAGE_KEYS.panelOpacity, String(DEFAULT_PREFERENCES.panelOpacity)),
+      });
+    },
+
+    async savePreferences(preferences) {
+      if (writeStoredJson(APP_STORAGE_KEYS.preferences, normalizePreferences(preferences))) {
+        safeRemoveStoredItem(LEGACY_STORAGE_KEYS.themeMode);
+        safeRemoveStoredItem(LEGACY_STORAGE_KEYS.backgroundOpacity);
+        safeRemoveStoredItem(LEGACY_STORAGE_KEYS.panelOpacity);
+      }
+    },
+
+    loadProgress() {
+      const stored = readStoredJson(APP_STORAGE_KEYS.progress);
+      if (stored) return normalizeProgress(stored);
+      return normalizeProgress({
+        starred: readStoredList(LEGACY_STORAGE_KEYS.starred),
+        learned: readStoredList(LEGACY_STORAGE_KEYS.learned),
+      });
+    },
+
+    async saveProgress(progress) {
+      if (writeStoredJson(APP_STORAGE_KEYS.progress, normalizeProgress(progress))) {
+        safeRemoveStoredItem(LEGACY_STORAGE_KEYS.starred);
+        safeRemoveStoredItem(LEGACY_STORAGE_KEYS.learned);
+      }
+    },
+
+    async loadBackground() {
+      try {
+        return await idbGet("background");
+      } catch {
+        return null;
+      }
+    },
+
+    async saveBackground(blob, meta = {}) {
+      await idbPut({
+        id: "background",
+        blob,
+        name: meta.name || "background",
+        type: meta.type || blob.type || "",
+        size: meta.size || blob.size || 0,
+        updatedAt: new Date().toISOString(),
+      });
+      this.clearLegacyBackgroundDataUrl();
+    },
+
+    async clearBackground() {
+      await idbDelete("background");
+      this.clearLegacyBackgroundDataUrl();
+    },
+
+    loadLegacyBackgroundDataUrl() {
+      return readStoredString(LEGACY_STORAGE_KEYS.backgroundImage, "");
+    },
+
+    clearLegacyBackgroundDataUrl() {
+      safeRemoveStoredItem(LEGACY_STORAGE_KEYS.backgroundImage);
+    },
+  };
+}
+
+function normalizePreferences(value = {}) {
+  const themeMode = ["system", "light", "dark"].includes(value.themeMode)
+    ? value.themeMode
+    : DEFAULT_PREFERENCES.themeMode;
+  const indexTab = INDEX_TABS.has(value.indexTab) ? value.indexTab : DEFAULT_PREFERENCES.indexTab;
+  const batchSize = BATCH_SIZE_OPTIONS.has(Number(value.batchSize))
+    ? Number(value.batchSize)
+    : DEFAULT_PREFERENCES.batchSize;
+
+  return {
+    themeMode,
+    backgroundOpacity: clampNumber(
+      value.backgroundOpacity,
+      0,
+      70,
+      DEFAULT_PREFERENCES.backgroundOpacity,
+    ),
+    panelOpacity: clampNumber(value.panelOpacity, 45, 100, DEFAULT_PREFERENCES.panelOpacity),
+    batchSize,
+    hideKana: normalizeBoolean(value.hideKana, DEFAULT_PREFERENCES.hideKana),
+    hideGloss: normalizeBoolean(value.hideGloss, DEFAULT_PREFERENCES.hideGloss),
+    termOnlySearch: normalizeBoolean(value.termOnlySearch, DEFAULT_PREFERENCES.termOnlySearch),
+    indexTab,
+  };
+}
+
+function normalizeProgress(value = {}) {
+  return {
+    starred: uniqueValues(Array.isArray(value.starred) ? value.starred.map(String).filter(Boolean) : []),
+    learned: uniqueValues(Array.isArray(value.learned) ? value.learned.map(String).filter(Boolean) : []),
+  };
+}
+
+function readStoredJson(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    // Local persistence is best-effort in private or quota-limited browsers.
+    return false;
+  }
 }
 
 function readStoredList(key) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
+  const value = readStoredJson(key);
+  return Array.isArray(value) ? value : [];
 }
 
 function readStoredString(key, fallback = "") {
@@ -1335,6 +1699,117 @@ function readStoredString(key, fallback = "") {
   } catch {
     return fallback;
   }
+}
+
+function safeRemoveStoredItem(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage access failures.
+  }
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return fallback;
+}
+
+let lexiconDbPromise = null;
+
+function openLexiconDb() {
+  if (!("indexedDB" in window)) {
+    return Promise.reject(new Error("IndexedDB is unavailable"));
+  }
+  if (!lexiconDbPromise) {
+    lexiconDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open("YukiJisho", 1);
+      request.addEventListener("upgradeneeded", () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("assets")) {
+          db.createObjectStore("assets", { keyPath: "id" });
+        }
+      });
+      request.addEventListener("success", () => {
+        resolve(request.result);
+      });
+      request.addEventListener("error", () => {
+        reject(request.error || new Error("Failed to open IndexedDB"));
+      });
+    });
+  }
+  return lexiconDbPromise;
+}
+
+async function idbGet(id) {
+  return idbRequest("readonly", (store) => store.get(id));
+}
+
+async function idbPut(record) {
+  return idbRequest("readwrite", (store) => store.put(record));
+}
+
+async function idbDelete(id) {
+  return idbRequest("readwrite", (store) => store.delete(id));
+}
+
+async function idbRequest(mode, createRequest) {
+  const db = await openLexiconDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("assets", mode);
+    const store = transaction.objectStore("assets");
+    let request;
+    try {
+      request = createRequest(store);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    request.addEventListener("success", () => {
+      resolve(request.result);
+    });
+    request.addEventListener("error", () => {
+      reject(request.error || transaction.error || new Error("IndexedDB request failed"));
+    });
+    transaction.addEventListener("abort", () => {
+      reject(transaction.error || new Error("IndexedDB transaction aborted"));
+    });
+  });
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return response.blob();
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.addEventListener("error", () => reject(reader.error || new Error("Failed to read blob")));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function downloadJson(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function dateStamp() {
+  const date = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
 }
 
 function clampNumber(value, min, max, fallback) {

@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>日本语 A/B/C 词典</title>
-    <link rel="stylesheet" href="./styles.css?v=20260701-equal-cards" />
+    <title>ユキ辞書</title>
+    <link rel="stylesheet" href="./styles.css?v=20260702-hide-kana-plate-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img class="brand-mark" src="./assets/logo-deep-teal.png" alt="" />
           <div>
-            <h1>日本语 A/B/C 词典</h1>
+            <h1>ユキ辞書</h1>
             <p id="datasetMeta">加载词条中</p>
           </div>
         </div>
@@ -83,6 +83,14 @@
               <input id="panelOpacity" type="range" min="45" max="100" value="92" />
             </label>
             <button class="wide-action muted" type="button" id="clearBackgroundBtn">清除背景</button>
+            <div class="setting-group">
+              <span class="setting-label">本地数据</span>
+              <div class="settings-actions">
+                <button class="wide-action" type="button" id="exportDataBtn">导出数据</button>
+                <button class="wide-action" type="button" id="importDataBtn">导入数据</button>
+                <input id="importDataInput" type="file" accept="application/json,.json" hidden />
+              </div>
+            </div>
             <p class="settings-note" id="backgroundStatus"></p>
           </section>
         </aside>
@@ -192,6 +200,7 @@
                   <option value="200">200</option>
                 </select>
               </label>
+              <button class="control-button" type="button" id="hideKanaBtn" aria-pressed="false">遮住假名</button>
               <button class="control-button" type="button" id="hideGlossBtn" aria-pressed="false">遮住释义</button>
             </div>
           </div>
@@ -217,6 +226,6 @@
     <script src="./lexicon-data.js?v=20260701-deepseek-v4-flash"></script>
     <script src="./examples-data.js?v=20260701-tatoeba-a"></script>
     <script src="./han-variants.js?v=20260701-1"></script>
-    <script src="./app.js?v=20260701-compact-cards"></script>
+    <script src="./app.js?v=20260702-hide-kana-1"></script>
   </body>
 </html>

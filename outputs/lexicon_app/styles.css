@@ -126,6 +126,10 @@ button {
   min-width: 280px;
 }
 
+.brand > div {
+  min-width: 0;
+}
+
 .brand-mark {
   display: block;
   width: 46px;
@@ -139,17 +143,23 @@ button {
 }
 
 .brand h1 {
+  overflow: hidden;
   margin: 0;
   font-size: 18px;
   line-height: 1.2;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand p {
+  overflow: hidden;
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-box {
@@ -343,6 +353,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
   min-height: 34px;
   border: 0;
   background: transparent;
@@ -358,9 +370,14 @@ button {
 }
 
 .cluster-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cluster-button .count-pill {
+  flex: 0 0 auto;
 }
 
 .kanji-index {
@@ -664,6 +681,7 @@ button {
 .filter-actions {
   flex: 0 0 auto;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .pager-group {
@@ -824,11 +842,12 @@ button {
 .entry-card {
   display: grid;
   align-content: start;
-  gap: 12px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
   box-sizing: border-box;
   height: clamp(460px, 62vh, 480px);
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   border: 1px solid var(--line);
   background: var(--surface-panel);
@@ -918,6 +937,45 @@ button {
   line-height: 1.35;
 }
 
+.kana-maskable.masked {
+  cursor: pointer;
+  user-select: none;
+}
+
+.reading.masked {
+  display: inline-grid;
+  width: fit-content;
+  min-width: 104px;
+  min-height: 24px;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-soft);
+  color: transparent;
+  padding: 0 10px;
+}
+
+.reading.masked::before {
+  content: "假名已遮住";
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.inline-kana.masked {
+  display: inline-grid;
+  min-width: 72px;
+  min-height: 18px;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-soft);
+  color: transparent;
+  vertical-align: middle;
+}
+
+.inline-kana.masked::before {
+  content: "已遮住";
+  color: var(--muted);
+}
+
 .card-actions {
   display: flex;
   gap: 6px;
@@ -966,6 +1024,33 @@ button {
 .definition-block {
   display: grid;
   gap: 6px;
+}
+
+.definition-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+
+.definition-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.definition-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  background-clip: padding-box;
+}
+
+.definition-scroll > * {
+  flex: 0 0 auto;
 }
 
 .section-heading {
@@ -1070,14 +1155,11 @@ button {
 .example-list {
   display: grid;
   gap: 10px;
-  max-height: 240px;
-  overflow-y: auto;
   margin: 0;
   border-top: 1px solid var(--line);
   padding: 10px;
   color: var(--ink);
   list-style: none;
-  overscroll-behavior: contain;
 }
 
 .example-item {
@@ -1161,12 +1243,18 @@ button {
 
 .details-grid {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
   border-top: 1px solid var(--line);
-  padding-top: 10px;
+  padding-top: 8px;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.details-grid div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .details-grid strong {
@@ -1232,6 +1320,17 @@ button {
 .file-setting input {
   min-height: 38px;
   padding: 7px;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-actions .wide-action {
+  margin: 0;
+  text-align: center;
 }
 
 .setting-group input[type="range"] {
@@ -1336,6 +1435,7 @@ button {
   .filter-controls,
   .filter-actions {
     align-items: stretch;
+    flex: none;
     width: 100%;
   }
 
@@ -1344,7 +1444,10 @@ button {
   }
 
   .filter-actions {
-    flex-direction: column;
+    align-self: flex-end;
+    flex-direction: row;
+    justify-content: flex-end;
+    width: auto;
   }
 
   .pager-group {
@@ -1362,21 +1465,26 @@ button {
     width: 100%;
   }
 
+  .filter-actions .control-button {
+    width: auto;
+  }
+
   .pager-group .icon-button {
     width: 38px;
   }
 
   #transitivityToggleBtn {
-    width: 100%;
-    min-width: 0;
+    width: auto;
+    min-width: 112px;
   }
 
   .level-toggle-group {
-    grid-template-columns: repeat(3, 1fr);
+    flex: 0 0 auto;
+    grid-template-columns: repeat(3, 30px);
   }
 
   .level-toggle {
-    width: 100%;
+    width: 30px;
   }
 
   .study-toolbar .inline-control select,
@@ -1391,5 +1499,213 @@ button {
 
   .entry-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 9px;
+  }
+
+  .brand h1 {
+    font-size: 16px;
+  }
+
+  .brand p {
+    overflow: hidden;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-box {
+    height: 40px;
+    padding: 0 10px;
+  }
+
+  .search-box input {
+    font-size: 14px;
+  }
+
+  .search-mode-button {
+    height: 38px;
+    font-size: 13px;
+  }
+
+  .sidebar {
+    max-height: 26vh;
+  }
+
+  .panel-section {
+    padding: 9px;
+  }
+
+  .segmented {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .segment {
+    min-height: 30px;
+    padding: 0 2px;
+    font-size: 12px;
+  }
+
+  .content {
+    padding: 8px;
+  }
+
+  .study-toolbar {
+    margin-bottom: 8px;
+    padding: 7px;
+  }
+
+  .toolbar-group,
+  .filter-group,
+  .filter-controls,
+  .filter-actions {
+    gap: 6px;
+  }
+
+  .filter-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .level-filter-control {
+    grid-column: 1 / -1;
+  }
+
+  .filter-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(96px, max-content));
+    justify-content: end;
+    width: auto;
+  }
+
+  .control-button,
+  .inline-control,
+  #transitivityToggleBtn {
+    min-width: 0;
+    min-height: 34px;
+    width: 100%;
+  }
+
+  .filter-actions .control-button {
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .study-toolbar .inline-control,
+  .page-toolbar .inline-control {
+    gap: 6px;
+    min-height: 34px;
+    padding-left: 8px;
+  }
+
+  .study-toolbar .inline-control select,
+  .page-toolbar .inline-control select {
+    height: 32px;
+    padding-right: 22px;
+    padding-left: 7px;
+  }
+
+  .level-toggle-group {
+    flex: 0 0 auto;
+    grid-template-columns: repeat(3, 28px);
+    gap: 5px;
+    padding-left: 7px;
+  }
+
+  .level-toggle {
+    width: 28px;
+    height: 28px;
+  }
+
+  .summary-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .summary-strip > div {
+    min-height: 44px;
+    padding: 7px 8px;
+  }
+
+  .metric {
+    font-size: 17px;
+  }
+
+  .metric-label {
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
+  .active-filter {
+    grid-column: 1 / -1;
+    min-height: 30px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .page-toolbar {
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+  }
+
+  .action-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .action-group .inline-control {
+    grid-column: 1 / -1;
+  }
+
+  .entry-card {
+    height: clamp(430px, 68vh, 460px);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .word {
+    font-size: 22px;
+  }
+
+  .reading {
+    font-size: 14px;
+  }
+
+  .details-grid {
+    gap: 3px 6px;
+    font-size: 10.5px;
+  }
+}
+
+@media (max-width: 300px) {
+  .brand p {
+    display: none;
+  }
+
+  .metric {
+    font-size: 15px;
+  }
+
+  .metric-label,
+  .active-filter {
+    font-size: 10.5px;
   }
 }
