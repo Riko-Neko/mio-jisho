@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Mio Jisho",
+  "version": "0.1.0",
+  "identifier": "dev.rikoneko.miojisho",
+  "build": {
+    "frontendDist": "../outputs/lexicon_app"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "澪 · Mio Jisho",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 960,
+        "minHeight": 640,
+        "center": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "shortDescription": "A local-first Japanese dictionary.",
+    "longDescription": "Mio Jisho combines Japanese dictionary search, JLPT references, kanji indexing and local study progress.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

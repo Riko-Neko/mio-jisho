@@ -84,14 +84,75 @@ python3 -m http.server 8000 --directory outputs/lexicon_app
 http://localhost:8000
 ```
 
+## 桌面应用
+
+Mio Jisho 使用 Tauri 2 将同一套静态应用封装为 macOS、Windows 和 Linux 桌面应用。词典数据随应用安装，不依赖远程服务器；收藏、掌握状态、显示偏好和背景图片仍保存在设备本地。
+
+每个版本的安装包可从项目的 [GitHub Releases](https://github.com/Riko-Neko/mio-jisho/releases) 下载。当前自动构建的安装包尚未使用 Apple Developer 或 Windows 商业证书签名；macOS 构建使用 ad-hoc 签名。
+
+本地开发需要 Node.js、Rust 和对应平台的 Tauri 系统依赖：
+
+```bash
+npm install
+npm run desktop:dev
+```
+
+构建当前平台的安装包：
+
+```bash
+npm run desktop:build
+```
+
+## Web 自部署
+
+Web 版本完全静态，不需要数据库、账号系统或应用服务器。除直接托管 `outputs/lexicon_app` 外，也可以使用项目提供的 Nginx 容器：
+
+```bash
+docker build -t mio-jisho .
+docker run --rm -p 8080:8080 mio-jisho
+```
+
+也可以使用 Compose 在后台运行：
+
+```bash
+docker compose up --build -d
+```
+
+然后访问：
+
+```text
+http://localhost:8080
+```
+
+部署在任意静态托管平台时，将 `outputs/lexicon_app` 作为站点根目录即可。用户学习数据只保存在各自浏览器中，不会上传到托管服务器。
+
+## 发布
+
+版本号同时维护在 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json`。推送 `v` 开头的标签后，GitHub Actions 会先检查三处版本与标签一致，再自动创建 Release，并上传：
+
+- macOS Apple Silicon 与 Intel 安装包
+- Windows x64 安装包
+- Linux x64 安装包
+- Web 静态版 `.zip` 与 `.tar.gz`
+
+例如发布 `0.1.0`：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## 项目结构
 
 ```text
 .
+├── .github/workflows/           # 三端构建与 GitHub Release
+├── deploy/                      # Web 自部署配置
 ├── docs/images/                 # README 运行截图
 ├── outputs/
 │   ├── lexicon_app/             # 可直接运行的静态词典
 │   └── mio_jisho/               # 工作簿与构建预览
+├── src-tauri/                   # macOS / Windows / Linux 桌面壳
 └── work/
     ├── scripts/                 # 数据清洗、匹配、构建与导出脚本
     ├── build/                   # 中间构建结果（默认忽略）

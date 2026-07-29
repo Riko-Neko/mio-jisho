@@ -13,6 +13,8 @@ __pycache__/
 node_modules
 node_modules/
 npm-debug.log*
+src-tauri/target/
+src-tauri/gen/
 
 # Downloaded source data, generated build tables, and heavy inspection dumps
 work/data/

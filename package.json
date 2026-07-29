@@ -1,0 +1,14 @@
+{
+  "name": "mio-jisho",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-first Japanese dictionary for desktop and the web.",
+  "scripts": {
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

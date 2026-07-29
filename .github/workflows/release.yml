@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    name: Publish web package
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          tauri_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)"
+          test "$tag_version" = "$package_version"
+          test "$tag_version" = "$tauri_version"
+          test "$tag_version" = "$cargo_version"
+
+      - name: Package static web application
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tar -C outputs -czf "mio-jisho-web-${version}.tar.gz" lexicon_app
+          cd outputs
+          zip -qr "../mio-jisho-web-${version}.zip" lexicon_app
+
+      - name: Create draft release and upload web packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              "mio-jisho-web-${version}.tar.gz" \
+              "mio-jisho-web-${version}.zip"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --draft \
+              --title "Mio Jisho ${GITHUB_REF_NAME}" \
+              --generate-notes \
+              --verify-tag \
+              "mio-jisho-web-${version}.tar.gz" \
+              "mio-jisho-web-${version}.zip"
+          fi
+
+  desktop:
+    name: Build ${{ matrix.name }}
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: --target aarch64-apple-darwin --bundles dmg
+            rust_targets: aarch64-apple-darwin
+          - name: macOS Intel
+            platform: macos-latest
+            args: --target x86_64-apple-darwin --bundles dmg
+            rust_targets: x86_64-apple-darwin
+          - name: Linux x64
+            platform: ubuntu-22.04
+            args: --bundles appimage,deb
+            rust_targets: ""
+          - name: Windows x64
+            platform: windows-latest
+            args: --bundles nsis
+            rust_targets: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend tooling
+        run: npm ci
+
+      - name: Build and upload desktop bundles
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseDraft: true
+          args: ${{ matrix.args }}
+          releaseAssetNamePattern: "mio-jisho-[version]-[platform]-[arch][setup][ext]"
+
+  publish:
+    name: Publish complete release
+    needs: [web, desktop]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
