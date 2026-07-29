@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="outputs/lexicon_app/assets/logo-deep-teal.png" width="96" alt="Mio Jisho logo">
+  <img src="outputs/lexicon_app/assets/mio-jisho-icon.png" width="96" alt="Mio Jisho logo">
   <h1>澪 · Mio Jisho</h1>
   <p>面向日语学习与词汇研究的本地优先词典。</p>
 </div>
