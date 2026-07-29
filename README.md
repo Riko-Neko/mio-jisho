@@ -1,3 +1,3 @@
-# ユキ辞書
+# 澪
 
-A Japanese vocabulary dictionary and study companion with structured entries, examples, and local review progress.
+Mio is a Japanese vocabulary dictionary and study companion with structured entries, examples, and local review progress.

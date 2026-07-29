@@ -98,11 +98,13 @@ for (const { sheetName, rows, cols } of sheetMeta) {
   visibleRange.format.autofitRows();
   if (sheetName === "Master") {
     sheet.getRange(`A1:${lastCol}${styledRows}`).format.columnWidth = 18;
-    sheet.getRange(`O1:O${styledRows}`).format.columnWidth = 40;
-    sheet.getRange(`P1:P${styledRows}`).format.columnWidth = 42;
-    sheet.getRange(`Q1:Q${styledRows}`).format.columnWidth = 36;
-    sheet.getRange(`U1:U${styledRows}`).format.columnWidth = 28;
-    sheet.getRange(`X1:X${styledRows}`).format.columnWidth = 22;
+    sheet.getRange(`D1:D${styledRows}`).format.columnWidth = 24;
+    sheet.getRange(`F1:F${styledRows}`).format.columnWidth = 24;
+    sheet.getRange(`S1:S${styledRows}`).format.columnWidth = 40;
+    sheet.getRange(`T1:T${styledRows}`).format.columnWidth = 42;
+    sheet.getRange(`U1:U${styledRows}`).format.columnWidth = 24;
+    sheet.getRange(`Y1:Y${styledRows}`).format.columnWidth = 28;
+    sheet.getRange(`AB1:AB${styledRows}`).format.columnWidth = 22;
   } else if (sheetName === "Noun_Kanji_Tree") {
     sheet.getRange(`A1:K${styledRows}`).format.columnWidth = 18;
     sheet.getRange(`E1:E${styledRows}`).format.columnWidth = 46;
@@ -144,10 +146,10 @@ await fs.mkdir(outputDir, { recursive: true });
 const masterCheck = await workbook.inspect({
   kind: "table",
   sheetId: "Master",
-  range: "A1:X8",
+  range: "A1:AB8",
   include: "values",
   tableMaxRows: 8,
-  tableMaxCols: 24,
+  tableMaxCols: 28,
   maxChars: 5000,
 });
 console.log(masterCheck.ndjson);
@@ -163,11 +165,11 @@ console.log(errorCheck.ndjson);
 
 const preview = await workbook.render({
   sheetName: "Master",
-  range: "A1:X25",
+  range: "A1:AB25",
   scale: 1,
   format: "png",
 });
 await fs.writeFile(path.join(outputDir, "master_preview.png"), new Uint8Array(await preview.arrayBuffer()));
 
 const xlsx = await SpreadsheetFile.exportXlsx(workbook);
-await xlsx.save(path.join(outputDir, "yuki_jisho.xlsx"));
+await xlsx.save(path.join(outputDir, "mio.xlsx"));

@@ -32,6 +32,7 @@ const DEFAULT_PREFERENCES = {
 };
 const INDEX_TABS = new Set(["category", "kanji", "saved", "settings"]);
 const BATCH_SIZE_OPTIONS = new Set([24, 48, 96, 200]);
+const JLPT_LEVEL_ORDER = ["N5", "N4", "N3", "N2", "N1"];
 const APP_STORE = createBrowserLexiconStore();
 const persistedPreferences = APP_STORE.loadPreferences();
 const persistedProgress = APP_STORE.loadProgress();
@@ -41,6 +42,7 @@ const state = {
   major: "",
   cluster: "",
   levels: new Set(),
+  jlptLevels: new Set(),
   transitivity: "",
   partGroup: "",
   kanji: "",
@@ -99,6 +101,7 @@ function bindElements() {
     "searchInput",
     "termOnlySearchBtn",
     "levelFilter",
+    "jlptFilter",
     "transitivityToggleBtn",
     "partFilter",
     "sortSelect",
@@ -420,6 +423,19 @@ function bindEvents() {
     applyFilters();
   });
 
+  els.jlptFilter.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-jlpt-filter]");
+    if (!button) return;
+    const level = button.dataset.jlptFilter || "";
+    if (state.jlptLevels.has(level)) {
+      state.jlptLevels.delete(level);
+    } else {
+      state.jlptLevels.add(level);
+    }
+    state.page = 1;
+    applyFilters();
+  });
+
   els.transitivityToggleBtn.addEventListener("click", () => {
     if (els.transitivityToggleBtn.disabled) return;
     state.transitivity = nextTransitivity(state.transitivity);
@@ -561,6 +577,8 @@ function bindEvents() {
     setStatusFilter("learned");
   });
   els.clearStatusBtn.addEventListener("click", () => {
+    const confirmed = window.confirm("确定清空本地状态吗？这会删除已标记和已掌握记录。");
+    if (!confirmed) return;
     storage.starred.clear();
     storage.learned.clear();
     persistStorage();
@@ -595,6 +613,8 @@ function bindEvents() {
   });
 
   els.clearBackgroundBtn.addEventListener("click", () => {
+    const confirmed = window.confirm("确定清除背景吗？已保存的本地背景图片会被删除。");
+    if (!confirmed) return;
     void clearStoredBackground();
   });
 
@@ -764,7 +784,7 @@ async function exportUserData() {
   try {
     const background = await APP_STORE.loadBackground();
     const payload = {
-      app: "Yuki Jisho",
+      app: "Mio",
       version: 1,
       exportedAt: new Date().toISOString(),
       preferences: snapshotPreferences(),
@@ -779,7 +799,7 @@ async function exportUserData() {
         dataUrl: await blobToDataUrl(background.blob),
       };
     }
-    downloadJson(payload, `yuki-jisho-data-${dateStamp()}.json`);
+    downloadJson(payload, `mio-data-${dateStamp()}.json`);
     setBackgroundStatus("本地数据已导出");
   } catch {
     setBackgroundStatus("导出失败");
@@ -844,6 +864,7 @@ function resetFilters() {
   state.major = "";
   state.cluster = "";
   state.levels.clear();
+  state.jlptLevels.clear();
   state.transitivity = "";
   state.partGroup = "";
   state.kanji = "";
@@ -872,6 +893,7 @@ function applyFilters() {
     if (state.major && entry.major !== state.major) return false;
     if (state.cluster && entry.cluster !== state.cluster) return false;
     if (state.levels.size && !state.levels.has(entry.level)) return false;
+    if (state.jlptLevels.size && !state.jlptLevels.has(entry.jlpt)) return false;
     if (state.partGroup && !matchesPartGroup(entry, state.partGroup)) return false;
     if (state.kanji && !(entry.kanji || []).includes(state.kanji)) return false;
     if (state.kanji && state.kanjiReading && !entryMatchesKanjiReading(entry, state.kanji, state.kanjiReading)) {
@@ -1227,6 +1249,7 @@ function renderEntryCard(entry) {
   const card = document.createElement("article");
   card.className = "entry-card";
   card.dataset.level = entry.level || "";
+  card.dataset.jlpt = entry.jlpt || "";
   card.classList.toggle("exact-match", Boolean(state.query && entry.exactSearchScore));
   card.classList.toggle("starred", storage.starred.has(entry.id));
   card.classList.toggle("learned", storage.learned.has(entry.id));
@@ -1255,6 +1278,7 @@ function renderEntryCard(entry) {
       <div class="term">
         <div class="word-line">
           <span class="level-badge">${escapeHtml(entry.level || "-")}</span>
+          ${renderJlptBadge(entry)}
           <span class="word">${escapeHtml(entry.word || "")}</span>
         </div>
         <div class="reading kana-maskable ${state.hideKana ? "masked" : ""}" data-kana-text="${escapeHtml(readingText)}">${
@@ -1349,6 +1373,15 @@ function renderEntryCard(entry) {
   return card;
 }
 
+function renderJlptBadge(entry) {
+  if (!entry.jlpt) {
+    return "";
+  }
+  const source = entry.jlptSource || "Tanos JLPT / CC BY";
+  const note = entry.jlptNote || "非官方参考等级";
+  return `<span class="jlpt-badge" title="${escapeHtml(`${source}；${note}`)}">${escapeHtml(entry.jlpt)}</span>`;
+}
+
 function renderExamplesSection(exampleItems) {
   if (!exampleItems.length) {
     return "";
@@ -1414,6 +1447,11 @@ function updateActiveButtons() {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+  document.querySelectorAll("[data-jlpt-filter]").forEach((button) => {
+    const active = state.jlptLevels.has(button.dataset.jlptFilter || "");
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   els.showStarredBtn.classList.toggle("active", state.status === "starred");
   els.showUnlearnedBtn.classList.toggle("active", state.status === "unlearned");
   els.showLearnedBtn.classList.toggle("active", state.status === "learned");
@@ -1438,6 +1476,7 @@ function describeActiveFilter() {
   if (state.kanji) parts.push(`核心汉字: ${state.kanji}`);
   if (state.kanjiReading) parts.push(`读音: ${state.kanjiReading}`);
   if (state.levels.size) parts.push(`等级 ${[...state.levels].join("")}`);
+  if (state.jlptLevels.size) parts.push(`JLPT ${formatJlptSelection()}`);
   if (state.transitivity) parts.push(state.transitivity);
   if (state.partGroup) parts.push(partGroupLabel(state.partGroup));
   if (state.status === "starred") parts.push("已标记");
@@ -1454,6 +1493,7 @@ function hasActiveFilters() {
     state.major ||
       state.cluster ||
       state.levels.size ||
+      state.jlptLevels.size ||
       state.transitivity ||
       state.partGroup ||
       state.kanji ||
@@ -1462,6 +1502,10 @@ function hasActiveFilters() {
       state.manualSort ||
       state.sort !== "rank",
   );
+}
+
+function formatJlptSelection() {
+  return JLPT_LEVEL_ORDER.filter((level) => state.jlptLevels.has(level)).join("/");
 }
 
 function partGroupLabel(partGroup) {
@@ -1726,7 +1770,7 @@ function openLexiconDb() {
   }
   if (!lexiconDbPromise) {
     lexiconDbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open("YukiJisho", 1);
+      const request = indexedDB.open("Mio", 1);
       request.addEventListener("upgradeneeded", () => {
         const db = request.result;
         if (!db.objectStoreNames.contains("assets")) {

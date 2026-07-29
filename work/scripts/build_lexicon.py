@@ -25,6 +25,7 @@ JMDICT_SOURCE_URL = "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz"
 KANJIDIC2_SOURCE_URL = "http://ftp.edrdg.org/pub/Nihongo/kanjidic2.xml.gz"
 BCCWJ_SOURCE_URL = "https://repository.ninjal.ac.jp/record/3234/files/BCCWJ_frequencylist_suw_ver1_0.zip"
 TRANSLATION_POLICY = "DeepSeek V4 Flash 翻译（基于 JMdict/EDRDG 英文释义；待抽样复核）"
+JLPT_POLICY = "Tanos JLPT / CC BY；非官方参考等级；按表记+读音自动匹配"
 
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 KANA_RE = re.compile(r"^[\u3040-\u30ffー・]+$")
@@ -268,7 +269,7 @@ def classify_major_pos(pos: list[str]) -> str:
         return "一类形容词"
     if any(label in joined for label in POS_PREFIXES["na_adjective"]):
         return "二类形容词"
-    if "verb" in joined or "Kuru verb" in joined:
+    if re.search(r"\bverb\b", joined):
         return "动词"
     if "noun" in joined or "pronoun" in joined or "numeric" in joined:
         return "名词"
@@ -647,11 +648,37 @@ def read_translation_overrides(path: Path | None) -> dict[str, dict[str, str]]:
         }
 
 
-def entry_to_row(e: Entry, translation_overrides: dict[str, dict[str, str]]) -> dict[str, object]:
+def read_jlpt_levels(path: Path | None) -> dict[str, dict[str, str]]:
+    if not path or not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = csv.DictReader(handle)
+        return {
+            row["词条ID"].strip(): {
+                "JLPT参考等级": row.get("JLPT参考等级", "").strip(),
+                "JLPT来源": row.get("JLPT来源", "").strip(),
+                "JLPT置信度": row.get("JLPT置信度", "").strip(),
+                "JLPT备注": row.get("JLPT备注", "").strip(),
+            }
+            for row in rows
+            if row.get("词条ID") and row.get("JLPT参考等级")
+        }
+
+
+def entry_to_row(
+    e: Entry,
+    translation_overrides: dict[str, dict[str, str]],
+    jlpt_levels: dict[str, dict[str, str]],
+) -> dict[str, object]:
     translation = translation_overrides.get(e.ent_seq, {})
+    jlpt = jlpt_levels.get(e.ent_seq, {})
     return {
         "词条ID": e.ent_seq,
         "等级": e.level,
+        "JLPT参考等级": jlpt.get("JLPT参考等级", ""),
+        "JLPT来源": jlpt.get("JLPT来源", ""),
+        "JLPT置信度": jlpt.get("JLPT置信度", ""),
+        "JLPT备注": jlpt.get("JLPT备注", ""),
         "表记": e.headword,
         "读音": e.reading,
         "大类": e.major_pos,
@@ -684,6 +711,7 @@ def emit_outputs(
     stats: dict[str, int],
     rejected_samples: list[dict[str, str]],
     translation_overrides: dict[str, dict[str, str]],
+    jlpt_levels: dict[str, dict[str, str]],
 ) -> None:
     build_transitive_candidates(entries)
     entries.sort(key=lambda e: (e.major_pos, e.level, e.reading or e.headword, e.headword))
@@ -691,6 +719,10 @@ def emit_outputs(
     master_fields = [
         "词条ID",
         "等级",
+        "JLPT参考等级",
+        "JLPT来源",
+        "JLPT置信度",
+        "JLPT备注",
         "表记",
         "读音",
         "大类",
@@ -714,14 +746,14 @@ def emit_outputs(
         "来源URL",
         "复核状态",
     ]
-    master_rows = [entry_to_row(e, translation_overrides) for e in entries]
+    master_rows = [entry_to_row(e, translation_overrides, jlpt_levels) for e in entries]
     write_csv(out_dir / "master_lexicon.csv", master_rows, master_fields)
 
-    verbs = [entry_to_row(e, translation_overrides) for e in entries if e.major_pos == "动词"]
+    verbs = [entry_to_row(e, translation_overrides, jlpt_levels) for e in entries if e.major_pos == "动词"]
     write_csv(out_dir / "verbs_by_transitivity.csv", verbs, master_fields)
 
     adjectives = [
-        entry_to_row(e, translation_overrides)
+        entry_to_row(e, translation_overrides, jlpt_levels)
         for e in entries
         if e.major_pos in {"一类形容词", "二类形容词"}
     ]
@@ -802,6 +834,16 @@ def emit_outputs(
                 "数量": len(translation_overrides),
                 "说明": "仅从 --translation-overrides 写入中文翻译；基础构建不再进行本地词典混合转译。",
             },
+            {
+                "项目": "jlpt_policy",
+                "数量": "",
+                "说明": JLPT_POLICY,
+            },
+            {
+                "项目": "jlpt_levels_loaded",
+                "数量": len(jlpt_levels),
+                "说明": "从 --jlpt-levels 写入 JLPT参考等级；JLPT 官方不发布当前词汇等级清单，本列仅作非官方参考。",
+            },
         ]
     )
     write_csv(out_dir / "source_audit.csv", audit_rows, ["项目", "数量", "说明"])
@@ -823,6 +865,8 @@ def emit_outputs(
         },
         "translation_source": TRANSLATION_POLICY,
         "translation_overrides_loaded": len(translation_overrides),
+        "jlpt_policy": JLPT_POLICY,
+        "jlpt_levels_loaded": len(jlpt_levels),
     }
     (out_dir / "build_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -834,17 +878,19 @@ def main() -> None:
     parser.add_argument("--bccwj", type=Path)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--translation-overrides", type=Path)
+    parser.add_argument("--jlpt-levels", type=Path)
     args = parser.parse_args()
 
     bccwj_index = parse_bccwj(args.bccwj)
     entries, stats, rejected_samples = parse_jmdict(args.jmdict, bccwj_index)
     kanji_info = parse_kanjidic2(args.kanjidic2)
     translation_overrides = read_translation_overrides(args.translation_overrides)
+    jlpt_levels = read_jlpt_levels(args.jlpt_levels)
     if kanji_info:
         stats["kanjidic2_characters_loaded"] = len(kanji_info)
     if bccwj_index:
         stats["bccwj_keys_loaded"] = len(bccwj_index)
-    emit_outputs(entries, kanji_info, args.out_dir, stats, rejected_samples, translation_overrides)
+    emit_outputs(entries, kanji_info, args.out_dir, stats, rejected_samples, translation_overrides, jlpt_levels)
 
 
 if __name__ == "__main__":

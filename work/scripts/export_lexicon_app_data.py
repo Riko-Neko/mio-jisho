@@ -14,6 +14,10 @@ from pathlib import Path
 FIELDS = {
     "id": "词条ID",
     "level": "等级",
+    "jlpt": "JLPT参考等级",
+    "jlpt_source": "JLPT来源",
+    "jlpt_confidence": "JLPT置信度",
+    "jlpt_note": "JLPT备注",
     "word": "表记",
     "reading": "读音",
     "major": "大类",
@@ -111,6 +115,7 @@ def export_data(input_dir: Path, output_dir: Path) -> Path:
     major_counts: Counter[str] = Counter()
     level_counts: Counter[str] = Counter()
     transitivity_counts: Counter[str] = Counter()
+    jlpt_counts: Counter[str] = Counter()
     cluster_counts: Counter[tuple[str, str]] = Counter()
     kanji_counts: Counter[str] = Counter()
 
@@ -118,6 +123,10 @@ def export_data(input_dir: Path, output_dir: Path) -> Path:
         entry = {
             "id": clean(row.get(FIELDS["id"])),
             "level": clean(row.get(FIELDS["level"])),
+            "jlpt": clean(row.get(FIELDS["jlpt"])),
+            "jlptSource": clean(row.get(FIELDS["jlpt_source"])),
+            "jlptConfidence": clean(row.get(FIELDS["jlpt_confidence"])),
+            "jlptNote": clean(row.get(FIELDS["jlpt_note"])),
             "word": clean(row.get(FIELDS["word"])),
             "reading": clean(row.get(FIELDS["reading"])),
             "major": clean(row.get(FIELDS["major"])),
@@ -144,9 +153,12 @@ def export_data(input_dir: Path, output_dir: Path) -> Path:
         major = str(entry["major"])
         level = str(entry["level"])
         transitivity = str(entry["transitivity"])
+        jlpt = str(entry["jlpt"])
         cluster = str(entry["cluster"])
         major_counts[major] += 1
         level_counts[level] += 1
+        if jlpt:
+            jlpt_counts[jlpt] += 1
         if transitivity:
             transitivity_counts[transitivity] += 1
         if cluster:
@@ -187,6 +199,7 @@ def export_data(input_dir: Path, output_dir: Path) -> Path:
             "entries": len(entries),
             "majors": dict(sorted(major_counts.items())),
             "levels": dict(sorted(level_counts.items())),
+            "jlpt": dict(sorted(jlpt_counts.items())),
             "transitivity": dict(transitivity_counts.most_common()),
             "kanji": len(kanji_index),
         },

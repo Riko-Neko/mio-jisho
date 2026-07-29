@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ユキ辞書</title>
-    <link rel="stylesheet" href="./styles.css?v=20260702-hide-kana-plate-1" />
+    <title>澪</title>
+    <link rel="stylesheet" href="./styles.css?v=20260703-safe-actions-layout-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img class="brand-mark" src="./assets/logo-deep-teal.png" alt="" />
           <div>
-            <h1>ユキ辞書</h1>
+            <h1>澪</h1>
             <p id="datasetMeta">加载词条中</p>
           </div>
         </div>
@@ -107,7 +107,26 @@
                     <button class="level-toggle" type="button" data-level-filter="C" aria-pressed="false">C</button>
                   </div>
                 </div>
-                <label class="inline-control">
+                <div class="inline-control jlpt-filter-control" id="jlptFilter" role="group" aria-label="JLPT参考等级">
+                  <span class="control-label-with-tip">
+                    JLPT
+                    <span
+                      class="info-tip"
+                      tabindex="0"
+                      aria-label="JLPT 官方不发布当前词汇表；本等级为 Tanos JLPT 词表参考，Tanos 非售卖内容按 CC BY 使用，来源标注为 Tanos JLPT / CC BY。"
+                      data-tooltip="JLPT 官方不发布当前词汇表；本等级为 Tanos JLPT 词表参考，Tanos 非售卖内容按 CC BY 使用，来源标注为 Tanos JLPT / CC BY。"
+                      >i</span
+                    >
+                  </span>
+                  <div class="jlpt-toggle-group">
+                    <button class="jlpt-toggle" type="button" data-jlpt-filter="N5" aria-pressed="false">N5</button>
+                    <button class="jlpt-toggle" type="button" data-jlpt-filter="N4" aria-pressed="false">N4</button>
+                    <button class="jlpt-toggle" type="button" data-jlpt-filter="N3" aria-pressed="false">N3</button>
+                    <button class="jlpt-toggle" type="button" data-jlpt-filter="N2" aria-pressed="false">N2</button>
+                    <button class="jlpt-toggle" type="button" data-jlpt-filter="N1" aria-pressed="false">N1</button>
+                  </div>
+                </div>
+                <label class="inline-control part-filter-control">
                   <span>品词</span>
                   <select id="partFilter">
                     <option value="">全部</option>
@@ -150,7 +169,7 @@
                     </optgroup>
                   </select>
                 </label>
-                <label class="inline-control">
+                <label class="inline-control sort-filter-control">
                   <span>排序</span>
                   <select id="sortSelect">
                     <option value="rank">常用度</option>
@@ -223,9 +242,9 @@
       </main>
     </div>
 
-    <script src="./lexicon-data.js?v=20260701-deepseek-v4-flash"></script>
+    <script src="./lexicon-data.js?v=20260703-jlpt-1"></script>
     <script src="./examples-data.js?v=20260701-tatoeba-a"></script>
     <script src="./han-variants.js?v=20260701-1"></script>
-    <script src="./app.js?v=20260702-hide-kana-1"></script>
+    <script src="./app.js?v=20260703-safe-actions-layout-1"></script>
   </body>
 </html>
