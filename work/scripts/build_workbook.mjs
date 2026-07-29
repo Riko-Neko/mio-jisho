@@ -172,4 +172,4 @@ const preview = await workbook.render({
 await fs.writeFile(path.join(outputDir, "master_preview.png"), new Uint8Array(await preview.arrayBuffer()));
 
 const xlsx = await SpreadsheetFile.exportXlsx(workbook);
-await xlsx.save(path.join(outputDir, "mio.xlsx"));
+await xlsx.save(path.join(outputDir, "mio_jisho.xlsx"));

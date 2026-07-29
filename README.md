@@ -1,3 +1,3 @@
 # 澪
 
-Mio is a Japanese vocabulary dictionary and study companion with structured entries, examples, and local review progress.
+Mio Jisho is a Japanese vocabulary dictionary and study companion with structured entries, examples, and local review progress.

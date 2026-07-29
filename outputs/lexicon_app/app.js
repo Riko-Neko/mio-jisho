@@ -784,7 +784,7 @@ async function exportUserData() {
   try {
     const background = await APP_STORE.loadBackground();
     const payload = {
-      app: "Mio",
+      app: "Mio Jisho",
       version: 1,
       exportedAt: new Date().toISOString(),
       preferences: snapshotPreferences(),
@@ -799,7 +799,7 @@ async function exportUserData() {
         dataUrl: await blobToDataUrl(background.blob),
       };
     }
-    downloadJson(payload, `mio-data-${dateStamp()}.json`);
+    downloadJson(payload, `mio-jisho-data-${dateStamp()}.json`);
     setBackgroundStatus("本地数据已导出");
   } catch {
     setBackgroundStatus("导出失败");
@@ -1770,7 +1770,7 @@ function openLexiconDb() {
   }
   if (!lexiconDbPromise) {
     lexiconDbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open("Mio", 1);
+      const request = indexedDB.open("MioJisho", 1);
       request.addEventListener("upgradeneeded", () => {
         const db = request.result;
         if (!db.objectStoreNames.contains("assets")) {
