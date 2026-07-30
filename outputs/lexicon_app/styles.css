@@ -118,6 +118,12 @@ select {
   font: inherit;
 }
 
+select option,
+select optgroup {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
 button {
   cursor: pointer;
 }
@@ -1476,6 +1482,18 @@ button {
 .settings-actions .wide-action {
   margin: 0;
   text-align: center;
+}
+
+.settings-actions .wide-action[hidden] {
+  display: none;
+}
+
+.update-actions {
+  grid-template-columns: 1fr;
+}
+
+.update-actions:has(#downloadUpdateBtn:not([hidden])) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .setting-group input[type="range"] {

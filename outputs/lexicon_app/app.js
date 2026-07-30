@@ -33,6 +33,9 @@ const DEFAULT_PREFERENCES = {
 const INDEX_TABS = new Set(["category", "kanji", "saved", "settings"]);
 const BATCH_SIZE_OPTIONS = new Set([24, 48, 96, 200]);
 const JLPT_LEVEL_ORDER = ["N5", "N4", "N3", "N2", "N1"];
+const APP_VERSION = "0.1.1";
+const RELEASES_API_URL = "https://api.github.com/repos/Riko-Neko/mio-jisho/releases/latest";
+const RELEASES_PAGE_URL = "https://github.com/Riko-Neko/mio-jisho/releases";
 const APP_STORE = createBrowserLexiconStore();
 const persistedPreferences = APP_STORE.loadPreferences();
 const persistedProgress = APP_STORE.loadProgress();
@@ -144,6 +147,9 @@ function bindElements() {
     "exportDataBtn",
     "importDataBtn",
     "importDataInput",
+    "checkUpdateBtn",
+    "downloadUpdateBtn",
+    "updateStatus",
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -576,13 +582,14 @@ function bindEvents() {
   els.showLearnedBtn.addEventListener("click", () => {
     setStatusFilter("learned");
   });
-  els.clearStatusBtn.addEventListener("click", () => {
-    const confirmed = window.confirm("确定清空本地状态吗？这会删除已标记和已掌握记录。");
+  els.clearStatusBtn.addEventListener("click", async () => {
+    const confirmed = await confirmAction("确定清空本地状态吗？这会删除已标记和已掌握记录。");
     if (!confirmed) return;
     storage.starred.clear();
     storage.learned.clear();
-    persistStorage();
+    await persistStorage();
     applyFilters();
+    setBackgroundStatus("本地学习状态已清空");
   });
 
   document.querySelectorAll("[data-theme-mode]").forEach((button) => {
@@ -612,10 +619,10 @@ function bindEvents() {
     }
   });
 
-  els.clearBackgroundBtn.addEventListener("click", () => {
-    const confirmed = window.confirm("确定清除背景吗？已保存的本地背景图片会被删除。");
+  els.clearBackgroundBtn.addEventListener("click", async () => {
+    const confirmed = await confirmAction("确定清除背景吗？已保存的本地背景图片会被删除。");
     if (!confirmed) return;
-    void clearStoredBackground();
+    await clearStoredBackground();
   });
 
   els.exportDataBtn.addEventListener("click", () => {
@@ -631,6 +638,14 @@ function bindEvents() {
     if (file) {
       void importUserData(file);
     }
+  });
+
+  els.checkUpdateBtn.addEventListener("click", () => {
+    void checkForUpdates();
+  });
+
+  els.downloadUpdateBtn.addEventListener("click", () => {
+    void openExternalUrl(els.downloadUpdateBtn.dataset.releaseUrl || RELEASES_PAGE_URL);
   });
 
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -799,11 +814,120 @@ async function exportUserData() {
         dataUrl: await blobToDataUrl(background.blob),
       };
     }
-    downloadJson(payload, `mio-jisho-data-${dateStamp()}.json`);
-    setBackgroundStatus("本地数据已导出");
+    const saved = await saveJsonFile(payload, `mio-jisho-data-${dateStamp()}.json`);
+    setBackgroundStatus(saved ? "本地数据已导出" : "已取消导出");
   } catch {
     setBackgroundStatus("导出失败");
   }
+}
+
+async function confirmAction(message) {
+  if (window.__TAURI__?.dialog?.confirm) {
+    try {
+      return await window.__TAURI__.dialog.confirm(message, {
+        title: "Mio Jisho",
+        kind: "warning",
+      });
+    } catch {
+      // Fall through to the browser dialog if the native plugin is unavailable.
+    }
+  }
+  return window.confirm(message);
+}
+
+async function saveJsonFile(payload, filename) {
+  const contents = JSON.stringify(payload, null, 2);
+
+  if (window.__TAURI__?.dialog?.save && window.__TAURI__?.core?.invoke) {
+    const path = await window.__TAURI__.dialog.save({
+      defaultPath: filename,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path) return false;
+    await window.__TAURI__.core.invoke("write_export_file", { path, contents });
+    return true;
+  }
+
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: "JSON",
+            accept: { "application/json": [".json"] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(contents);
+      await writable.close();
+      return true;
+    } catch (error) {
+      if (error?.name === "AbortError") return false;
+      throw error;
+    }
+  }
+
+  downloadJson(contents, filename);
+  return true;
+}
+
+async function checkForUpdates() {
+  els.checkUpdateBtn.disabled = true;
+  els.downloadUpdateBtn.hidden = true;
+  els.updateStatus.textContent = "正在检查更新";
+
+  try {
+    const response = await fetch(RELEASES_API_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+
+    const release = await response.json();
+    const latestVersion = String(release.tag_name || "").replace(/^v/i, "");
+    if (!isValidVersion(latestVersion)) throw new Error("Invalid release version");
+
+    if (compareVersions(latestVersion, APP_VERSION) > 0) {
+      els.updateStatus.textContent = `发现新版本 ${latestVersion}`;
+      els.downloadUpdateBtn.textContent = `下载 v${latestVersion}`;
+      els.downloadUpdateBtn.dataset.releaseUrl = release.html_url || RELEASES_PAGE_URL;
+      els.downloadUpdateBtn.hidden = false;
+    } else {
+      els.updateStatus.textContent = `当前已是最新版本 ${APP_VERSION}`;
+    }
+  } catch {
+    els.updateStatus.textContent = "检查失败，请确认网络连接";
+  } finally {
+    els.checkUpdateBtn.disabled = false;
+  }
+}
+
+async function openExternalUrl(url) {
+  if (window.__TAURI__?.opener?.openUrl) {
+    try {
+      await window.__TAURI__.opener.openUrl(url);
+      return;
+    } catch {
+      // Fall through to the browser behavior.
+    }
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function isValidVersion(value) {
+  return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(value || ""));
+}
+
+function compareVersions(left, right) {
+  const leftParts = String(left).split("-", 1)[0].split(".").map(Number);
+  const rightParts = String(right).split("-", 1)[0].split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] > rightParts[index] ? 1 : -1;
+    }
+  }
+  return 0;
 }
 
 async function importUserData(file) {
@@ -1603,7 +1727,7 @@ function persistPreferences() {
 }
 
 function persistStorage() {
-  void APP_STORE.saveProgress(snapshotProgress());
+  return APP_STORE.saveProgress(snapshotProgress());
 }
 
 function createBrowserLexiconStore() {
@@ -1838,8 +1962,8 @@ function blobToDataUrl(blob) {
   });
 }
 
-function downloadJson(payload, filename) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+function downloadJson(contents, filename) {
+  const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

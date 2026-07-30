@@ -1,6 +1,6 @@
 {
   "name": "mio-jisho",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A local-first Japanese dictionary for desktop and the web.",
   "scripts": {
@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-opener": "^2.5.4"
   }
 }

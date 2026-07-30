@@ -7,7 +7,7 @@
     <title>澪</title>
     <link rel="icon" type="image/png" href="./assets/mio-jisho-icon.png" />
     <link rel="apple-touch-icon" href="./assets/mio-jisho-icon.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260730-cool-blue-theme-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260730-desktop-fixes-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -93,6 +93,14 @@
                 <button class="wide-action" type="button" id="importDataBtn">导入数据</button>
                 <input id="importDataInput" type="file" accept="application/json,.json" hidden />
               </div>
+            </div>
+            <div class="setting-group">
+              <span class="setting-label">应用更新</span>
+              <div class="settings-actions update-actions">
+                <button class="wide-action" type="button" id="checkUpdateBtn">检查更新</button>
+                <button class="wide-action" type="button" id="downloadUpdateBtn" hidden>下载更新</button>
+              </div>
+              <p class="settings-note" id="updateStatus">当前版本 0.1.1</p>
             </div>
             <p class="settings-note" id="backgroundStatus"></p>
           </section>
@@ -248,6 +256,6 @@
     <script src="./lexicon-data.js?v=20260703-jlpt-1"></script>
     <script src="./examples-data.js?v=20260701-tatoeba-a"></script>
     <script src="./han-variants.js?v=20260701-1"></script>
-    <script src="./app.js?v=20260703-safe-actions-layout-1"></script>
+    <script src="./app.js?v=20260730-desktop-fixes-1"></script>
   </body>
 </html>
